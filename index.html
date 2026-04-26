@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8"/>
-<title>Palandöken Kelebek Haritası</title>
+<title>Palandöken Kelebek Yoğunluk Haritası</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -10,220 +10,213 @@
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <style>
-body { margin:0; font-family:Arial, sans-serif; }
-#map { height:100vh; }
-.panel {
-  position:absolute; top:10px; left:10px; z-index:1000;
-  background:white; padding:12px; border-radius:10px;
-  box-shadow:0 0 12px rgba(0,0,0,.3);
-  max-width:330px; max-height:90vh; overflow:auto;
-  font-size:13px;
+body{margin:0;font-family:Arial,sans-serif}
+#map{height:100vh}
+.panel{
+position:absolute;top:10px;left:10px;z-index:1000;
+background:white;padding:12px;border-radius:12px;
+box-shadow:0 0 14px rgba(0,0,0,.35);
+width:340px;max-height:90vh;overflow:auto;font-size:13px
 }
-button {
-  width:100%; padding:8px; margin:5px 0;
-  background:#2b6cb0; color:white; border:0;
-  border-radius:7px; cursor:pointer;
-}
-.small { font-size:12px; color:#555; }
-label { display:block; margin:3px 0; }
+button{width:100%;padding:8px;margin:5px 0;border:0;border-radius:8px;background:#2563eb;color:white;cursor:pointer}
+button.gray{background:#555}
+.small{font-size:12px;color:#555;line-height:1.35}
+label{display:block;margin:4px 0}
+.legend{border-top:1px solid #ddd;margin-top:8px;padding-top:8px}
 </style>
 </head>
 
 <body>
 
 <div class="panel">
-  <h3>🦋 Palandöken Kelebek Haritası</h3>
-  <button onclick="loadGBIF()">Palandöken GBIF kayıtlarını tara</button>
-  <button onclick="toggleHeat()">Isı haritasını aç/kapat</button>
-  <button onclick="toggleModel()">Model alanını aç/kapat</button>
+<h3>🦋 Palandöken Kelebek Yoğunluk Haritası</h3>
 
-  <div id="status" class="small">Hazır</div>
-  <hr>
-  <b>Bulunan türler</b>
-  <div id="speciesList" class="small">Henüz tarama yapılmadı.</div>
+<button onclick="renderEvidenceModel()">Kaynaklı yoğunluk modelini göster</button>
+<button onclick="loadGBIF()">GBIF noktasal kayıtlarını tara</button>
+<button class="gray" onclick="toggleHeat()">Isı haritası aç/kapat</button>
+
+<div id="status" class="small">Hazır</div>
+
+<hr>
+<b>Tür / kaynak filtresi</b>
+<div id="speciesList" class="small">Model henüz işlenmedi.</div>
+
+<div class="legend small">
+<b>Okuma notu:</b><br>
+🔴 Isı izi = kaynak + habitat + bölgesel yoğunluk modeli<br>
+🔵 Nokta = GBIF koordinatlı kayıt<br>
+🟢 Alan = Kuzu / Güney gibi bölgesel yoğunluk alanı<br><br>
+Bu harita kesin birey noktası değil, olasılık/yoğunluk modelidir.
+</div>
 </div>
 
 <div id="map"></div>
 
 <script>
-var map = L.map('map').setView([39.86, 41.27], 12);
+var map=L.map('map').setView([39.86,41.27],12);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom:18,
-  attribution:'&copy; OpenStreetMap'
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:18,
+attribution:'&copy; OpenStreetMap'
 }).addTo(map);
 
-// Palandöken odaklı yaklaşık sınır
-var minLat = 39.70;
-var maxLat = 40.00;
-var minLon = 41.05;
-var maxLon = 41.45;
+/*
+Koordinatlar bölgesel merkezdir.
+Kuzu ve Güney için daha doğru merkezleri biliyorsan
+sadece lat/lon değerlerini değiştiririz.
+*/
+var evidenceData=[
+{tur:"Parnassius apollo",bolge:"Güney",lat:39.80,lon:41.25,kaynak:"Palandöken KBA",kanit:"önemli tür/habitat",guven:82,agirlik:1.00,not:"yüksek rakım, açık/taşlık-çayırlık alan"},
+{tur:"Pyrgus cirsii",bolge:"Güney",lat:39.81,lon:41.27,kaynak:"Palandöken KBA",kanit:"önemli tür",guven:78,agirlik:.90,not:"Palandöken KBA tür bilgisi"},
+{tur:"Polyommatus tankeri",bolge:"Kuzu",lat:39.87,lon:41.31,kaynak:"Palandöken KBA",kanit:"önemli tür",guven:78,agirlik:.95,not:"Palandöken KBA tür bilgisi"},
 
-// Sınır kutusu
-L.rectangle([[minLat,minLon],[maxLat,maxLon]], {
-  color:"#444", weight:1, fill:false
-}).addTo(map).bindPopup("Palandöken tarama alanı");
+{tur:"Turanana endymion",bolge:"Kuzu",lat:39.88,lon:41.30,kaynak:"Palandöken-Erzurum-Kaçkar video",kanit:"video/foto",guven:76,agirlik:.95,not:"2025 yaz gözlem kaynağı"},
+{tur:"Polyommatus sp.",bolge:"Kuzu",lat:39.86,lon:41.32,kaynak:"Palandöken-Erzurum-Kaçkar video",kanit:"video/foto",guven:72,agirlik:.85,not:"Polyommatinae kaydı"},
 
-// Model ısı alanı
-var modelHeat = L.heatLayer([
-  [39.82,41.22,0.7],
-  [39.84,41.25,0.9],
-  [39.86,41.28,1.0],
-  [39.88,41.30,0.8],
-  [39.91,41.25,0.7],
-  [39.93,41.20,0.5]
-], {
-  radius:35,
-  blur:25
-}).addTo(map);
+{tur:"Arethusana arethusa",bolge:"Güney",lat:39.82,lon:41.24,kaynak:"AdaMerOs Erzurum",kanit:"fotoğraf",guven:68,agirlik:.75,not:"Erzurum il kaydı; Palandöken için orta güven"},
+{tur:"Polyommatus admetus",bolge:"Kuzu",lat:39.87,lon:41.29,kaynak:"AdaMerOs Erzurum",kanit:"fotoğraf",guven:68,agirlik:.75,not:"Erzurum il kaydı; Palandöken için orta güven"},
+{tur:"Thaleropis ionia",bolge:"Güney",lat:39.83,lon:41.23,kaynak:"AdaMerOs Erzurum",kanit:"fotoğraf",guven:64,agirlik:.65,not:"Erzurum il kaydı; Palandöken için orta güven"},
 
-var modelVisible = true;
+{tur:"Genel çayır kelebekleri",bolge:"Kuzu",lat:39.89,lon:41.31,kaynak:"habitat modeli",kanit:"ıslak çayır/açık alan",guven:84,agirlik:1.00,not:"Kuzu bölgesi yüksek yoğunluk varsayımı"},
+{tur:"Genel çayır kelebekleri",bolge:"Güney",lat:39.79,lon:41.26,kaynak:"habitat modeli",kanit:"çayır/yamaç",guven:84,agirlik:1.00,not:"Güney bölgesi yüksek yoğunluk varsayımı"},
+{tur:"Gözlemci yanlılığı alanı",bolge:"Kayak merkezi girişi",lat:39.86,lon:41.27,kaynak:"erişilebilirlik düzeltmesi",kanit:"yol/tesis etkisi",guven:45,agirlik:.35,not:"kayıt yoğunluğu gerçek yoğunluğu abartabilir"}
+];
 
-// GBIF gerçek ısı haritası
-var gbifHeat = null;
-var heatVisible = true;
+var speciesLayers={};
+var areaLayer=L.layerGroup().addTo(map);
+var gbifLayer=L.layerGroup().addTo(map);
+var heatLayer=null;
+var heatVisible=true;
 
-var speciesLayers = {};
+function setStatus(t){document.getElementById("status").innerHTML=t;}
 
-function setStatus(t){
-  document.getElementById("status").innerHTML = t;
-}
-
-function toggleModel(){
-  if(modelVisible){
-    map.removeLayer(modelHeat);
-    modelVisible = false;
-  } else {
-    modelHeat.addTo(map);
-    modelVisible = true;
-  }
+function clearModel(){
+Object.values(speciesLayers).forEach(l=>map.removeLayer(l));
+speciesLayers={};
+areaLayer.clearLayers();
+if(heatLayer){map.removeLayer(heatLayer);heatLayer=null;}
 }
 
 function toggleHeat(){
-  if(!gbifHeat) return;
-  if(heatVisible){
-    map.removeLayer(gbifHeat);
-    heatVisible = false;
-  } else {
-    gbifHeat.addTo(map);
-    heatVisible = true;
-  }
+if(!heatLayer)return;
+if(heatVisible){map.removeLayer(heatLayer);heatVisible=false;}
+else{heatLayer.addTo(map);heatVisible=true;}
 }
 
 function toggleSpecies(name){
-  var layer = speciesLayers[name];
-  if(!layer) return;
-  if(map.hasLayer(layer)){
-    map.removeLayer(layer);
-  } else {
-    layer.addTo(map);
-  }
+var l=speciesLayers[name];
+if(!l)return;
+if(map.hasLayer(l)){map.removeLayer(l);}
+else{l.addTo(map);}
+}
+
+function renderEvidenceModel(){
+clearModel();
+
+var heatPoints=[];
+
+evidenceData.forEach(function(d){
+var weight=(d.guven/100)*d.agirlik;
+heatPoints.push([d.lat,d.lon,weight]);
+
+if(!speciesLayers[d.tur]){
+speciesLayers[d.tur]=L.layerGroup().addTo(map);
+}
+
+var marker=L.circleMarker([d.lat,d.lon],{
+radius:7,
+color:"#166534",
+fillColor:"#22c55e",
+fillOpacity:.75,
+weight:1
+});
+
+marker.bindPopup(
+"<b>"+d.tur+"</b><br>"+
+"Bölge: "+d.bolge+"<br>"+
+"Kaynak: "+d.kaynak+"<br>"+
+"Kanıt: "+d.kanit+"<br>"+
+"Güven: %"+d.guven+"<br>"+
+"Not: "+d.not
+);
+
+marker.addTo(speciesLayers[d.tur]);
+});
+
+// Bölgesel alanlar
+L.circle([39.88,41.31],{
+radius:1700,color:"#16a34a",fillColor:"#22c55e",fillOpacity:.12,weight:2
+}).addTo(areaLayer).bindPopup("<b>Kuzu bölgesi</b><br>Kaynak/habitat ağırlıklı yüksek yoğunluk alanı");
+
+L.circle([39.80,41.25],{
+radius:1900,color:"#16a34a",fillColor:"#22c55e",fillOpacity:.12,weight:2
+}).addTo(areaLayer).bindPopup("<b>Güney bölgesi</b><br>Kaynak/habitat ağırlıklı yüksek yoğunluk alanı");
+
+L.circle([39.86,41.27],{
+radius:900,color:"#f59e0b",fillColor:"#f59e0b",fillOpacity:.08,weight:2
+}).addTo(areaLayer).bindPopup("<b>Kayak merkezi girişi</b><br>Gözlemci yanlılığı nedeniyle düşük ağırlık");
+
+heatLayer=L.heatLayer(heatPoints,{
+radius:58,
+blur:34,
+maxZoom:15,
+gradient:{0.2:"blue",0.4:"lime",0.6:"yellow",0.8:"orange",1:"red"}
+}).addTo(map);
+
+heatVisible=true;
+
+var html="";
+Object.keys(speciesLayers).sort().forEach(function(t){
+var safe=t.replace(/'/g,"\\'");
+html+="<label><input type='checkbox' checked onchange=\"toggleSpecies('"+safe+"')\"> <i>"+t+"</i></label>";
+});
+document.getElementById("speciesList").innerHTML=html;
+
+setStatus("Kaynaklı model işlendi: "+evidenceData.length+" kanıt girdisi.");
+map.setView([39.84,41.28],12);
 }
 
 async function loadGBIF(){
-  setStatus("GBIF kayıtları çekiliyor...");
+setStatus("GBIF koordinatlı kayıtları aranıyor...");
+gbifLayer.clearLayers();
 
-  Object.values(speciesLayers).forEach(l => map.removeLayer(l));
-  speciesLayers = {};
+var minLat=39.70,maxLat=40.00,minLon=41.05,maxLon=41.45;
+var url="https://api.gbif.org/v1/occurrence/search?country=TR&orderKey=797&hasCoordinate=true&decimalLatitude="+minLat+","+maxLat+"&decimalLongitude="+minLon+","+maxLon+"&limit=300";
 
-  if(gbifHeat){
-    map.removeLayer(gbifHeat);
-    gbifHeat = null;
-  }
+try{
+var res=await fetch(url);
+var data=await res.json();
+var records=(data.results||[]).filter(function(r){
+return r.decimalLatitude&&r.decimalLongitude&&(r.species||r.scientificName);
+});
 
-  document.getElementById("speciesList").innerHTML = "Yükleniyor...";
+records.forEach(function(r){
+var name=r.species||r.scientificName;
+var m=L.circleMarker([r.decimalLatitude,r.decimalLongitude],{
+radius:5,color:"#1d4ed8",fillColor:"#3b82f6",fillOpacity:.85,weight:1
+});
+m.bindPopup(
+"<b>"+name+"</b><br>"+
+"GBIF ID: "+(r.key||"")+
+"<br>Tarih: "+(r.eventDate||"belirtilmemiş")+
+"<br>Kaynak: "+(r.datasetName||"GBIF")
+);
+m.addTo(gbifLayer);
+});
 
-  var url =
-    "https://api.gbif.org/v1/occurrence/search" +
-    "?country=TR" +
-    "&orderKey=797" +
-    "&hasCoordinate=true" +
-    "&decimalLatitude=" + minLat + "," + maxLat +
-    "&decimalLongitude=" + minLon + "," + maxLon +
-    "&limit=300";
-
-  try {
-    var res = await fetch(url);
-    var data = await res.json();
-
-    var records = (data.results || []).filter(r =>
-      r.decimalLatitude &&
-      r.decimalLongitude &&
-      r.species
-    );
-
-    if(records.length === 0){
-      setStatus("Palandöken sınırı içinde GBIF tür kaydı bulunamadı.");
-      document.getElementById("speciesList").innerHTML =
-        "Kayıt bulunamadı. Model ısı alanı gösteriliyor.";
-      return;
-    }
-
-    var heatPoints = [];
-
-    records.forEach(r => {
-      var species = r.species;
-
-      if(!speciesLayers[species]){
-        speciesLayers[species] = L.layerGroup().addTo(map);
-      }
-
-      var lat = r.decimalLatitude;
-      var lon = r.decimalLongitude;
-
-      heatPoints.push([lat, lon, 0.9]);
-
-      var marker = L.circleMarker([lat, lon], {
-        radius:6,
-        color:"#1d4ed8",
-        fillColor:"#3b82f6",
-        fillOpacity:0.75,
-        weight:1
-      });
-
-      marker.bindPopup(
-        "<b>" + species + "</b><br>" +
-        "Tarih: " + (r.eventDate || "belirtilmemiş") + "<br>" +
-        "Kaynak: " + (r.datasetName || "GBIF")
-      );
-
-      marker.addTo(speciesLayers[species]);
-    });
-
-    gbifHeat = L.heatLayer(heatPoints, {
-      radius:38,
-      blur:28,
-      maxZoom:14
-    }).addTo(map);
-
-    heatVisible = true;
-
-    var html = "";
-    Object.keys(speciesLayers).sort().forEach(name => {
-      var count = speciesLayers[name].getLayers().length;
-      var safe = name.replace(/'/g, "\\'");
-      html +=
-        "<label><input type='checkbox' checked onchange=\"toggleSpecies('" + safe + "')\"> " +
-        "<i>" + name + "</i> (" + count + ")</label>";
-    });
-
-    document.getElementById("speciesList").innerHTML = html;
-
-    setStatus(
-      records.length + " kayıt bulundu. " +
-      Object.keys(speciesLayers).length + " tür listelendi."
-    );
-
-    map.fitBounds([[minLat,minLon],[maxLat,maxLon]]);
-
-  } catch(e){
-    console.error(e);
-    setStatus("GBIF verisi çekilemedi.");
-    document.getElementById("speciesList").innerHTML =
-      "Bağlantı veya API hatası oluştu.";
-  }
+if(records.length===0){
+setStatus("Bu dar Palandöken kutusunda GBIF noktasal kayıt bulunamadı. Model katmanı kullanılmalı.");
+}else{
+setStatus("GBIF: "+records.length+" koordinatlı kayıt eklendi.");
 }
-</script>
 
+}catch(e){
+setStatus("GBIF verisi çekilemedi.");
+console.error(e);
+}
+}
+
+renderEvidenceModel();
+</script>
 </body>
 </html>
