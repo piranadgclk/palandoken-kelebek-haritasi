@@ -10,141 +10,219 @@
 <script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
 
 <style>
-body { margin:0; font-family:Arial; }
+body { margin:0; font-family:Arial, sans-serif; }
 #map { height:100vh; }
-
 .panel {
-position:absolute;
-top:10px;
-left:10px;
-background:white;
-padding:12px;
-border-radius:10px;
-box-shadow:0 0 12px rgba(0,0,0,0.3);
-max-width:300px;
-z-index:1000;
-font-size:14px;
+  position:absolute; top:10px; left:10px; z-index:1000;
+  background:white; padding:12px; border-radius:10px;
+  box-shadow:0 0 12px rgba(0,0,0,.3);
+  max-width:330px; max-height:90vh; overflow:auto;
+  font-size:13px;
 }
-
-.btn {
-width:100%;
-margin:5px 0;
-padding:8px;
-border:0;
-border-radius:8px;
-background:#2b6cb0;
-color:white;
-cursor:pointer;
+button {
+  width:100%; padding:8px; margin:5px 0;
+  background:#2b6cb0; color:white; border:0;
+  border-radius:7px; cursor:pointer;
 }
-
 .small { font-size:12px; color:#555; }
+label { display:block; margin:3px 0; }
 </style>
 </head>
 
 <body>
 
 <div class="panel">
-<h3>🦋 Palandöken Haritası</h3>
+  <h3>🦋 Palandöken Kelebek Haritası</h3>
+  <button onclick="loadGBIF()">Palandöken GBIF kayıtlarını tara</button>
+  <button onclick="toggleHeat()">Isı haritasını aç/kapat</button>
+  <button onclick="toggleModel()">Model alanını aç/kapat</button>
 
-<button class="btn" onclick="loadGBIF()">GBIF verisini çek</button>
-<button class="btn" onclick="toggleModel()">Isı haritasını aç/kapat</button>
-
-<div id="status" class="small">Hazır</div>
-
-<hr>
-
-<div id="speciesList" class="small">Türler burada görünecek</div>
-
+  <div id="status" class="small">Hazır</div>
+  <hr>
+  <b>Bulunan türler</b>
+  <div id="speciesList" class="small">Henüz tarama yapılmadı.</div>
 </div>
 
 <div id="map"></div>
 
 <script>
-
-// Harita
-var map = L.map('map').setView([39.88, 41.27], 11);
+var map = L.map('map').setView([39.86, 41.27], 12);
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-maxZoom: 18
+  maxZoom:18,
+  attribution:'&copy; OpenStreetMap'
 }).addTo(map);
 
-// Model ısı haritası
-var heatData = [
-[39.86,41.25,0.8],
-[39.88,41.28,0.9],
-[39.91,41.24,0.7],
-[39.93,41.30,0.6]
-];
+// Palandöken odaklı yaklaşık sınır
+var minLat = 39.70;
+var maxLat = 40.00;
+var minLon = 41.05;
+var maxLon = 41.45;
 
-var heatLayer = L.heatLayer(heatData, {radius:25}).addTo(map);
+// Sınır kutusu
+L.rectangle([[minLat,minLon],[maxLat,maxLon]], {
+  color:"#444", weight:1, fill:false
+}).addTo(map).bindPopup("Palandöken tarama alanı");
+
+// Model ısı alanı
+var modelHeat = L.heatLayer([
+  [39.82,41.22,0.7],
+  [39.84,41.25,0.9],
+  [39.86,41.28,1.0],
+  [39.88,41.30,0.8],
+  [39.91,41.25,0.7],
+  [39.93,41.20,0.5]
+], {
+  radius:35,
+  blur:25
+}).addTo(map);
+
+var modelVisible = true;
+
+// GBIF gerçek ısı haritası
+var gbifHeat = null;
 var heatVisible = true;
 
-function toggleModel(){
-if(heatVisible){
-map.removeLayer(heatLayer);
-heatVisible = false;
-}else{
-heatLayer.addTo(map);
-heatVisible = true;
-}
-}
-
-// Tür katmanları
 var speciesLayers = {};
 
+function setStatus(t){
+  document.getElementById("status").innerHTML = t;
+}
+
+function toggleModel(){
+  if(modelVisible){
+    map.removeLayer(modelHeat);
+    modelVisible = false;
+  } else {
+    modelHeat.addTo(map);
+    modelVisible = true;
+  }
+}
+
+function toggleHeat(){
+  if(!gbifHeat) return;
+  if(heatVisible){
+    map.removeLayer(gbifHeat);
+    heatVisible = false;
+  } else {
+    gbifHeat.addTo(map);
+    heatVisible = true;
+  }
+}
+
 function toggleSpecies(name){
-if(map.hasLayer(speciesLayers[name])){
-map.removeLayer(speciesLayers[name]);
-}else{
-map.addLayer(speciesLayers[name]);
-}
+  var layer = speciesLayers[name];
+  if(!layer) return;
+  if(map.hasLayer(layer)){
+    map.removeLayer(layer);
+  } else {
+    layer.addTo(map);
+  }
 }
 
-// GBIF veri çekme
 async function loadGBIF(){
+  setStatus("GBIF kayıtları çekiliyor...");
 
-document.getElementById("status").innerHTML = "Veri çekiliyor...";
+  Object.values(speciesLayers).forEach(l => map.removeLayer(l));
+  speciesLayers = {};
 
-let url = "https://api.gbif.org/v1/occurrence/search?country=TR&orderKey=797&hasCoordinate=true&limit=200";
+  if(gbifHeat){
+    map.removeLayer(gbifHeat);
+    gbifHeat = null;
+  }
 
-let res = await fetch(url);
-let data = await res.json();
+  document.getElementById("speciesList").innerHTML = "Yükleniyor...";
 
-speciesLayers = {};
-document.getElementById("speciesList").innerHTML = "";
+  var url =
+    "https://api.gbif.org/v1/occurrence/search" +
+    "?country=TR" +
+    "&orderKey=797" +
+    "&hasCoordinate=true" +
+    "&decimalLatitude=" + minLat + "," + maxLat +
+    "&decimalLongitude=" + minLon + "," + maxLon +
+    "&limit=300";
 
-data.results.forEach(r => {
+  try {
+    var res = await fetch(url);
+    var data = await res.json();
 
-if(!r.decimalLatitude || !r.decimalLongitude || !r.species) return;
+    var records = (data.results || []).filter(r =>
+      r.decimalLatitude &&
+      r.decimalLongitude &&
+      r.species
+    );
 
-if(!speciesLayers[r.species]){
-speciesLayers[r.species] = L.layerGroup().addTo(map);
+    if(records.length === 0){
+      setStatus("Palandöken sınırı içinde GBIF tür kaydı bulunamadı.");
+      document.getElementById("speciesList").innerHTML =
+        "Kayıt bulunamadı. Model ısı alanı gösteriliyor.";
+      return;
+    }
+
+    var heatPoints = [];
+
+    records.forEach(r => {
+      var species = r.species;
+
+      if(!speciesLayers[species]){
+        speciesLayers[species] = L.layerGroup().addTo(map);
+      }
+
+      var lat = r.decimalLatitude;
+      var lon = r.decimalLongitude;
+
+      heatPoints.push([lat, lon, 0.9]);
+
+      var marker = L.circleMarker([lat, lon], {
+        radius:6,
+        color:"#1d4ed8",
+        fillColor:"#3b82f6",
+        fillOpacity:0.75,
+        weight:1
+      });
+
+      marker.bindPopup(
+        "<b>" + species + "</b><br>" +
+        "Tarih: " + (r.eventDate || "belirtilmemiş") + "<br>" +
+        "Kaynak: " + (r.datasetName || "GBIF")
+      );
+
+      marker.addTo(speciesLayers[species]);
+    });
+
+    gbifHeat = L.heatLayer(heatPoints, {
+      radius:38,
+      blur:28,
+      maxZoom:14
+    }).addTo(map);
+
+    heatVisible = true;
+
+    var html = "";
+    Object.keys(speciesLayers).sort().forEach(name => {
+      var count = speciesLayers[name].getLayers().length;
+      var safe = name.replace(/'/g, "\\'");
+      html +=
+        "<label><input type='checkbox' checked onchange=\"toggleSpecies('" + safe + "')\"> " +
+        "<i>" + name + "</i> (" + count + ")</label>";
+    });
+
+    document.getElementById("speciesList").innerHTML = html;
+
+    setStatus(
+      records.length + " kayıt bulundu. " +
+      Object.keys(speciesLayers).length + " tür listelendi."
+    );
+
+    map.fitBounds([[minLat,minLon],[maxLat,maxLon]]);
+
+  } catch(e){
+    console.error(e);
+    setStatus("GBIF verisi çekilemedi.");
+    document.getElementById("speciesList").innerHTML =
+      "Bağlantı veya API hatası oluştu.";
+  }
 }
-
-let marker = L.circleMarker([r.decimalLatitude, r.decimalLongitude], {
-radius:5
-}).addTo(speciesLayers[r.species]);
-
-marker.bindPopup(r.species);
-
-});
-
-// Tür listesi
-let html = "";
-
-Object.keys(speciesLayers).forEach(name => {
-html += `
-<label>
-<input type="checkbox" checked onchange="toggleSpecies('${name.replace(/'/g,"")}')">
-${name}
-</label><br>`;
-});
-
-document.getElementById("speciesList").innerHTML = html;
-document.getElementById("status").innerHTML = "Veri yüklendi";
-
-}
-
 </script>
 
 </body>
