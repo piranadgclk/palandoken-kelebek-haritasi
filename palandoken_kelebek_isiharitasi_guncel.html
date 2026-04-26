@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Palandöken Kelebek Türleri - Isı İzi Haritası</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<style>
+  body{margin:0;font-family:Arial,Helvetica,sans-serif;background:#f7f7f7;color:#222}
+  #map{height:72vh;width:100%}
+  .panel{padding:14px 18px;background:white;box-shadow:0 2px 12px rgba(0,0,0,.08);line-height:1.42}
+  h1{font-size:21px;margin:0 0 8px} h2{font-size:16px;margin:14px 0 6px}
+  .note{font-size:13px;color:#555}.legend{background:white;padding:8px 10px;border-radius:8px;box-shadow:0 1px 8px rgba(0,0,0,.25);font-size:13px}
+  .dot{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px}.hot{background:#b30000}.mid{background:#ff9900}.low{background:#f5e663}
+  table{border-collapse:collapse;width:100%;font-size:13px;margin-top:8px}th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}th{background:#f0f0f0}
+  .badge{display:inline-block;border-radius:999px;padding:2px 8px;font-size:12px;background:#eef;margin:2px 4px 2px 0}.crit{background:#ffe2e2}.prob{background:#fff4cc}.obs{background:#e8f7e8}
+  a{color:#0645ad}.small{font-size:12px;color:#666}
+</style>
+</head>
+<body>
+<div class="panel">
+<h1>Palandöken Kayak Merkezi çevresi kelebek türleri ve yoğunluk ısı izi</h1>
+<div class="note">Bu harita, Palandöken Dağları için yayımlanmış kayıtlar, çevrim içi gözlem içerikleri ve habitat uygunluğu kullanılarak hazırlanmış keşif amaçlı bir modeldir. Isı izi kesin birey sayımı değildir; arazi doğrulaması gerektirir.</div>
+</div>
+<div id="map"></div>
+<div class="panel">
+<h2>Kayıtlardan eklenen türler</h2>
+<table><thead><tr><th>Tür</th><th>Türkçe ad / grup</th><th>Kayıt gücü</th><th>Haritada yoğunlaştırılan habitat</th></tr></thead><tbody>
+<tr><td><i>Parnassius apollo</i></td><td>Apollo</td><td><span class="badge crit">Palandöken KBA/ÖDA ana tür</span></td><td>Kayalık, güneşli yüksek dağ yamaçları; sedumlu taşlık alanlar</td></tr>
+<tr><td><i>Pyrgus cirsii</i></td><td>Beşparmakotu zıpzıpı</td><td><span class="badge crit">Palandöken KBA/ÖDA ana tür</span></td><td>Çiçekli dağ çayırı ve açık step-mera geçişleri</td></tr>
+<tr><td><i>Polyommatus tankeri</i></td><td>Tanker’in çokgözlüsü</td><td><span class="badge crit">Palandöken KBA/ÖDA ana tür</span></td><td>Subalpin/alpin çayırlar ve nispeten az otlatılmış çiçekli yaylalar</td></tr>
+<tr><td><i>Turanana endymion</i></td><td>Odd-spot Blue / çokgözlüler</td><td><span class="badge obs">Palandöken-Erzurum-Kaçkar video kaydı</span></td><td>Çiçekli subalpin çayırlar, pist kenarı açıklıklar</td></tr>
+<tr><td><i>Polyommatus admetus</i></td><td>Çokgözlü grubu</td><td><span class="badge prob">Erzurum il kaydı</span></td><td>Kuru step-mera, taşlık ve çiçekli açıklıklar</td></tr>
+<tr><td><i>Satyrium spini</i></td><td>Hairstreak / sevbeni grubu</td><td><span class="badge obs">Palandöken-Erzurum-Kaçkar video kaydı</span></td><td>Çalı kuşağı, dere-vadi kenarı, orman/çalı geçişleri</td></tr>
+<tr><td><i>Satyrium w-album</i></td><td>Hairstreak / sevbeni grubu</td><td><span class="badge obs">Palandöken-Erzurum-Kaçkar video kaydı</span></td><td>Çalı ve seyrek ağaç geçişleri, nemli vadi kenarları</td></tr>
+<tr><td><i>Thecla betulae</i></td><td>Hairstreak / sevbeni grubu</td><td><span class="badge obs">Palandöken-Erzurum-Kaçkar video kaydı</span></td><td>Çalı-ağaççık geçişleri ve vadi kenarı nektar kaynakları</td></tr>
+<tr><td><i>Arethusana arethusa</i></td><td>Step/çayır türü</td><td><span class="badge prob">Erzurum il kaydı</span></td><td>Kuru step-mera ve çiçekli açık alanlar</td></tr>
+<tr><td><i>Thaleropis ionia</i></td><td>Nymphalidae grubu</td><td><span class="badge prob">Erzurum il kaydı</span></td><td>Sıcak, açık step-mera ve çalı geçişleri</td></tr>
+</tbody></table>
+<h2>Kaynak notu</h2>
+<p class="small">Palandöken Dağları KBA/ÖDA sayfası alanın 2050-3176 m yükselti kuşağında olduğunu, derin vadiler/yaylalar içerdiğini, tahrip olmuş ormanların yerini dağ bozkırlarının aldığını ve yüksek irtifa yaylalarında daha gür alpin çayır bitkileri görüldüğünü belirtir. Aynı kaynak alanda 140 kelebek türü olduğunu ve <i>Parnassius apollo</i>, <i>Pyrgus cirsii</i>, <i>Polyommatus tankeri</i> türlerini öne çıkarır. GBIF’teki Hesselbarth-Oorschot-Wagener veri seti Türkiye çapında tekil kelebek gözlemlerinden oluşur ve konumların 10x10 km ölçeğinde notlandığını belirtir. Bu nedenle noktasal ısı izi, hassas yer gösterimi değil habitat ağırlıklı modeldir.</p>
+</div>
+<script>
+const map = L.map('map').setView([39.865, 41.275], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:18, attribution:'© OpenStreetMap contributors'}).addTo(map);
+
+const heatData = [
+ [39.862,41.275,0.98],[39.865,41.282,0.95],[39.858,41.286,0.90],[39.854,41.292,0.80],
+ [39.876,41.258,0.88],[39.883,41.249,0.82],[39.891,41.240,0.68],[39.870,41.245,0.70],
+ [39.846,41.301,0.78],[39.838,41.314,0.68],[39.832,41.327,0.58],
+ [39.894,41.288,0.72],[39.904,41.297,0.62],[39.914,41.305,0.48],
+ [39.854,41.238,0.66],[39.844,41.229,0.58],[39.835,41.219,0.50],
+ [39.821,41.273,0.52],[39.813,41.284,0.44],[39.805,41.292,0.36],
+ [39.891,41.322,0.42],[39.877,41.335,0.36]
+];
+L.heatLayer(heatData, {radius: 32, blur: 24, maxZoom: 15, minOpacity: 0.35}).addTo(map);
+
+const zones = [
+ {name:'Yüksek olasılık: çiçekli subalpin çayırlar / pist kenarı açıklıklar', lat:39.862, lon:41.275, color:'#b30000', text:'Polyommatus/Turanana grubu, Pyrgus cirsii ve Polyommatus tankeri için güçlü tarama alanı.'},
+ {name:'Orta-yüksek olasılık: dere-vadi ve çalı geçişleri', lat:39.876, lon:41.258, color:'#ff9900', text:'Satyrium spini, Satyrium w-album, Thecla betulae gibi hairstreak grubu için olası koridor.'},
+ {name:'Orta olasılık: kuru step-mera açıklıkları', lat:39.846, lon:41.301, color:'#f5e663', text:'Arethusana arethusa, Polyommatus admetus ve Thaleropis ionia benzeri step/mera türleri için uygun açıklıklar.'},
+ {name:'Özel tarama: kayalık yüksek dağ yamaçları', lat:39.821, lon:41.273, color:'#999', text:'Parnassius apollo için sedumlu, güneşli ve taşlık yamaçlar kontrol edilmeli.'}
+];
+zones.forEach(z=>L.circleMarker([z.lat,z.lon],{radius:8,color:z.color,fillColor:z.color,fillOpacity:.85}).addTo(map).bindPopup('<b>'+z.name+'</b><br>'+z.text));
+L.polygon([[39.91,41.20],[39.92,41.35],[39.80,41.37],[39.79,41.20]], {color:'#333', weight:1, fill:false, dashArray:'4 6'}).addTo(map).bindPopup('Yaklaşık çalışma alanı: Palandöken Kayak Merkezi ve yakın çevresi');
+const legend = L.control({position:'bottomright'});
+legend.onAdd=function(){const div=L.DomUtil.create('div','legend');div.innerHTML='<b>Yoğunluk modeli</b><br><span class="dot hot"></span>Yüksek<br><span class="dot mid"></span>Orta<br><span class="dot low"></span>Düşük-orta<br><small>Kesin sayım değildir.</small>';return div;};
+legend.addTo(map);
+</script>
+</body>
+</html>
